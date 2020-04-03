@@ -1,0 +1,173 @@
+##
+# Cкрипт заходит на сайт, смотрит картинки и сохраняет их длинну и ширину
+##
+
+
+from urllib.request import urlopen
+from urllib.parse import urljoin
+
+from grab import Grab
+import urllib.request
+import os
+import time
+import re
+
+
+try:
+    from PIL import Image
+except ImportError:
+    import Image
+import pytesseract
+
+from lxml.html import fromstring
+
+import xlsxwriter
+
+
+URL = 'http://z500proekty.ru/doma/tag-reset.html?r=aaQ&limit=400&page=2'
+ITEM_PATH = '#results>.item'
+NAME_ELEM = '.project-name'
+NAME_ELEM_VAR = '.variant-name'
+#PHOTO_ELEM = '.detail .detail-img-b>img'
+PHOTO_ELEM = '#main-photo'
+ITEM_PRICE= '.detail-price__number'
+baseurl = 'http://z500proekty.ru'
+
+
+
+
+def parse_courses():
+    f = urlopen(URL)
+    list_html = f.read().decode('utf-8')
+    list_doc = fromstring(list_html)
+
+    imgarrays = []
+    for elem in list_doc.cssselect(ITEM_PATH):
+        a = elem.cssselect('a')[0]
+        href = a.get('href')
+        url = urljoin(URL, href)
+        #print(url)
+
+        course = {'url': url}
+
+        # код перехода на станицы
+        details_html = urlopen(url).read()
+
+        # убрать код джавы
+        try:
+            details_doc = fromstring(details_html)
+        except XMLSyntaxError:
+            сontinue
+
+        # выводим название товара на странице
+        try:
+            name_elem = details_doc.cssselect(NAME_ELEM)[0]
+            name_colection = name_elem.text_content()
+        except:
+            name_colection = "0"
+
+        # выводим название варианта товара на странице
+        try:
+            name_elem_var = details_doc.cssselect(NAME_ELEM_VAR)[0]
+            name_colection_var = name_elem_var.text_content()
+        except:
+            name_colection_var = "0"
+
+        # выводим ссылки на план этажей
+        #imgarrays = []
+        try:
+            elements = details_doc.cssselect('.fancybox.hover')
+            limit = 1 #устанавливаем лимит по скачиванию картинок
+            for element in elements[:limit]:
+                img = baseurl+element.get('href')
+                nameimgsave = img.split('/')[-1] # сохраняем имя картинки в исходниках
+                #print(nameimgsave)
+
+                imgarray = {'url_img': url}
+
+                # создаем папку
+                path = r'C:\Парсер\ПРОБА\bleskstroy'
+                projectname = name_colection+name_colection_var
+                projectfasad = 'fasad'
+                fullpath = os.path.join(path, projectname,projectfasad,nameimgsave)+".jpg"
+                #print(fullpath)
+
+                imagesaved = Image.open(fullpath)
+
+                (width, height) = imagesaved.size
+
+                # обрезка по левую сторону
+
+                right = width - 100
+                right_crop = width - right
+
+                box = (0, 0, right_crop, height - 0)
+                # print(box)
+
+                # Cropped image of above dimension
+                # (It will not change orginal image)
+                im1 = imagesaved.crop(box).transpose(Image.ROTATE_270)
+
+                # Shows the image in image viewer
+                #im1.show()
+
+                save_img_my = im1.save("tel.jpg")
+                try:
+                    s = pytesseract.image_to_string(Image.open("tel.jpg"))
+                    widht_dom = re.findall('\d+', s)[0]
+
+                except:
+                    widht_dom = pytesseract.image_to_string(Image.open("tel.jpg"))
+
+                # обрезка по низу
+
+                box_bottom = (0, height - 150, width, height)
+                im1_bottom = imagesaved.crop(box_bottom)
+                # im1_bottom.show()
+
+                save_img_my_bottom = im1_bottom.save("tel2.jpg")
+                try:
+                    s_bottom = pytesseract.image_to_string(Image.open("tel2.jpg"))
+                    height_dom = re.findall('\d+', s_bottom)[0]
+
+                except:
+                    height_dom = pytesseract.image_to_string(Image.open("tel2.jpg"))
+
+
+        except:
+            widht_dom = "0"
+            height_dom = "0"
+
+        imgarray['Длина'] = widht_dom
+        imgarray['Ширина'] = height_dom
+
+        imgarrays.append(imgarray)
+
+        #print(imgarrays)
+
+        workbook = xlsxwriter.Workbook('z500-длина+ширина.xlsx')
+        worksheet = workbook.add_worksheet()
+
+        bold = workbook.add_format({'bold': True})
+
+        field_names = ('Ссылка', 'Длина', 'Ширина')
+        for i, field in enumerate(field_names):
+            worksheet.write(0, i, field, bold)
+
+            fields = ('url_img', 'Длина', 'Ширина')
+
+        for row, imgarray in enumerate(imgarrays, start=1):
+            for col, field in enumerate(fields):
+                worksheet.write(row, col, imgarray[field])
+
+        workbook.close()
+
+
+
+
+
+def main():
+    parse_courses()
+
+if __name__ == '__main__':
+    main()
