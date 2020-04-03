@@ -1,0 +1,26 @@
+""" Делает скриншот сайтов"""
+from selenium import webdriver
+
+folder = r'C:\Парсер\скринсайтов\\'
+from time import sleep
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+
+
+urls = [
+    'https://msk-fundamenty.ru/',
+    'https://fundament-pod-klyuch.pro/'
+
+    ]
+for url in urls:
+    driver = webdriver.Firefox()
+    driver.set_window_size(1280,6000)
+    driver.get(url)
+    name = url.split('//')[1]
+    name = name.split('/')[0]
+    driver.get_screenshot_as_file(folder+name+'.png')
+
+
+
+    driver.quit()
