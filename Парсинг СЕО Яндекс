@@ -1,0 +1,156 @@
+#сохраняет данные из Яндекс CЕО по заданным страницам
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+
+from lxml.html import fromstring
+
+import xlsxwriter
+
+# заголовок запроса к Яндексу
+header = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:50.0) Gecko/20100101 Firefox/50.0'}
+url = ''
+
+# Задаём регион
+# Список идентификаторов российских регионов https://tech.yandex.ru/xml/doc/dg/reference/regions-docpage/
+# Москва и Московская область – 213
+# Санкт-Петербург – 2
+# Казань – 43
+# Самара - 51
+# Нижний новгород - 47
+region = 11057    #<!---   Указываем параметр 1
+
+# Задаём глубину страниц
+total_pages = 5
+
+
+#название сохраненного файла
+name_file = 'Ессентуки-сео.csv'  #<!---   Указываем параметр 2
+
+
+def get_html(url):
+    r = requests.get(url, headers=header)
+    return r.text
+
+
+def read_queries_list_from_file(filename):
+
+    f = open(filename, mode='r', encoding='utf-8')
+    return [x.strip() for x in f]
+
+
+def get_page_data(html, query):
+    soup = BeautifulSoup(html, 'lxml')
+
+    ads = soup.findAll('li', class_='serp-item')
+
+    title_list = []
+    description_list = []
+    link_list = []
+    adv_list = []
+    linkadv_list = []
+    zapros = []
+
+    for ad in ads:
+
+        try:
+            title = ad.find(class_='organic__url-text').text
+            title_list.append(title)
+        except:
+            title = '0'
+            title_list.append(title)
+
+        try:
+            description = ad.find(class_='organic__content-wrapper').text
+            # if (description is None):
+            #   description = ad.find('div', class_='organic__content-wrapper').find(class_='text-container typo typo_text_m typo_line_m organic__text').text
+
+            description_list.append(description)
+        except:
+            description = '0'
+            description_list.append(description)
+
+        try:
+            link = ad.find(class_='organic__path').find('a').find('b').text
+            link_list.append(link)
+
+        except:
+            link = '0'
+            link_list.append(link)
+
+        # adv = ad.find('div', class_='extralinks i-bem').find('span', class_='direct-label direct-label_type_hocss direct-label_align_right')
+
+        try:
+            adv = ad.find('div', class_='extralinks i-bem').find('span',class_='direct-label direct-label_type_hocss direct-label_align_right')
+            adv_list.append(adv)
+
+        except:
+            adv = 'СЕО'
+            adv_list.append(adv)
+
+        try:
+            linkadv = ad.find('h2', class_='organic__title-wrapper typo typo_text_l typo_line_m').find('a').get('href')
+            linkadv_list.append(linkadv)
+
+        except:
+            linkadv = '0'
+            linkadv_list.append(linkadv)
+
+        zapros_list = query
+        zapros.append(zapros_list)
+
+    return title_list, description_list, link_list, adv_list, linkadv_list, zapros
+
+
+def main():
+
+    base_url = 'https://www.yandex.ru/search/'
+    region_part = "?lr="
+    pages = '&p='
+    querytext = '&text='
+
+    query_list = read_queries_list_from_file('запросы.txt')
+
+    title_list = []
+    description_list = []
+    link_list = []
+    adv_list = []
+    linkadv_list = []
+    zapros = []
+
+
+    for query in query_list:
+        print('Обработка запроса: {}'.format(query))
+        for i in range(0, total_pages):
+            url_gen = base_url + region_part + str(region) + querytext + query + pages + str(i)
+            html = get_html(url_gen)
+
+
+            temp_title_list, temp_description_list, temp_link_list, temp_adv_list, temp_linkadv_list, temp_zapros = get_page_data(html, query)
+
+            title_list += temp_title_list
+            description_list += temp_description_list
+            link_list += temp_link_list
+            adv_list += temp_adv_list
+            linkadv_list += temp_linkadv_list
+            # zapros += format(query)
+            # print(query)
+            zapros += temp_zapros
+
+    comp_df = pd.DataFrame(
+        {
+
+            '1 Запрос': zapros,
+            '2 Заголовок': title_list,
+            '3 Текст': description_list,
+            '4 Ссылка': link_list,
+            '5 Выдача': adv_list,
+            '6 Ссылка на сайт': linkadv_list
+
+        })
+
+    comp_df.to_csv(name_file, sep=',', encoding='utf-8')
+    comp_df.head()
+
+if __name__ == '__main__':
+    main()
