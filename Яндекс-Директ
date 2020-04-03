@@ -1,0 +1,165 @@
+#сохраняет данные из Яндекс Директа по заданным страницам
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+
+from lxml.html import fromstring
+
+import xlsxwriter
+
+# заголовок запроса к Яндексу
+headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64; rv:50.0) Gecko/20100101 Firefox/50.0'}
+url = ''
+
+# Задаём регион
+# Список идентификаторов российских регионов https://tech.yandex.ru/xml/doc/dg/reference/regions-docpage/
+# Москва и Московская область – 213
+# Санкт-Петербург – 2
+# Казань – 43
+# Самара - 51
+# Нижний новгород - 47
+# Ростов - 39
+# Уфа - 172
+# Пермь - 50
+# Воронеж - 193
+# Саратов - 194
+# Краснодар - 35
+# Тольятти  - 240
+
+region = 41  #<!---   Указываем параметр 1
+
+# Задаём глубину страниц
+total_pages = 5
+
+
+#название сохраненного файла
+name_file = 'Йошкар ола'  #<!---   Указываем параметр 2
+
+
+def get_html(url):
+    r = requests.get(url)
+    return r.text
+
+
+def read_queries_list_from_file(filename):
+    """
+    Чтение поисковых запросов из файла filename в лист.
+    Функция возвращает лист вида:
+
+    [
+        'жк valo',
+        'жк valo санкт петербург',
+        'жк valo вало',
+        ...
+        'жк вало спб официальный сайт цены',
+        'жк вало отзывы спб тайный покупатель'
+    ]
+    """
+
+    f = open(filename, mode='r', encoding='utf-8')
+    return [x.strip() for x in f]
+
+
+def get_page_data(html, query):
+    soup = BeautifulSoup(html, 'lxml')
+
+    ads = soup.findAll('li', class_='serp-item')
+
+    title_list = []
+    description_list = []
+    link_list = []
+    visitka_list = []
+    number_list = []
+    zapros_list = []
+
+    for ad in ads:
+
+        try:
+            title = ad.find(class_='organic__url-text').text
+            title_list.append(title)
+        except:
+            title = '0'
+            title_list.append(title)
+
+
+        try:
+            description = ad.find(class_='text-container typo typo_text_m typo_line_m organic__text').text
+            description_list.append(description)
+        except:
+            description = '0'
+            description_list.append(description)
+
+        try:
+            link = ad.find(class_='organic__path').find('a').find('b').text
+            link_list.append(link)
+        except:
+            link = '0'
+            link_list.append(link)
+
+        try:
+            visitka = ad.find(class_='serp-meta__line serp-meta__line_separator_bullet').findAll(class_='serp-meta__item')[0].find('a')['href']
+            visitka_list.append(visitka)
+
+        except:
+            visitka = '0'
+            visitka_list.append(visitka)
+
+        try:
+            number = ad.find(class_='serp-meta__line serp-meta__line_separator_bullet').findAll(class_='serp-meta__item')[1].text
+            number_list.append(number)
+        except:
+            number = '0'
+            number_list.append(number)
+
+        zapros = query
+        zapros_list.append(zapros)
+
+    return title_list, description_list, link_list, visitka_list, number_list, zapros_list
+
+
+def main():
+    base_url = 'https://www.yandex.ru/search/ads?text='
+    pages = '&p='
+    region_part = "&lr="
+
+    query_list = read_queries_list_from_file('запросы.txt')
+
+    title_list = []
+    description_list = []
+    link_list = []
+    visitka_list = []
+    number_list = []
+    zapros_list = []
+
+    for query in query_list:
+        print('Обработка запроса: {}'.format(query))
+        for i in range(0, total_pages):
+            url_gen = base_url + query + region_part + str(region) + pages + str(i)
+            html = get_html(url_gen)
+
+            temp_title_list, temp_description_list, temp_link_list, temp_visitka_list, temp_number_list, temp_zapros_list = get_page_data(html, query)
+
+            title_list += temp_title_list
+            description_list += temp_description_list
+            link_list += temp_link_list
+            visitka_list += temp_visitka_list
+            number_list += temp_number_list
+            zapros_list += temp_zapros_list
+
+    comp_df = pd.DataFrame(
+        {
+            '1 Запрос': zapros_list,
+            '2 Заголовок': title_list,
+            '3 Текст': description_list,
+            '4 Ссылка': link_list,
+            '5 Визитка': visitka_list,
+            '6 Телефон': number_list
+
+
+        })
+
+    comp_df.to_csv(name_file, sep=',', encoding='utf-8')
+    comp_df.head()
+
+if __name__ == '__main__':
+    main()
