@@ -1,0 +1,121 @@
+from urllib.request import urlopen
+from urllib.parse import urljoin
+from grab import Grab
+
+
+
+from lxml.html import fromstring
+
+import xlsxwriter
+
+
+URL = 'https://www.wildberries.ru/catalog/igrushki/kukly-i-aksessuary/kukolnye-domiki'
+ITEM_PATH = '.dtList>span>span>span'
+NAME_ELEM = 'h1'
+#PHOTO_ELEM = '.detail .detail-img-b>img'
+PHOTO_ELEM = '.j-carousel-image'
+ITEM_PRICE= '.detail-price__number'
+
+
+def parse_courses():
+    f = urlopen(URL)
+    list_html = f.read().decode('utf-8')
+    list_doc = fromstring(list_html)
+
+    courses = []
+    for elem in list_doc.cssselect(ITEM_PATH):
+        a = elem.cssselect('a')[0]
+        href = a.get('href')
+        url = urljoin(URL, href)
+
+
+        #print(href)
+        course = {'url': url}
+
+        # код перехода на станицы
+        details_html = urlopen(url).read()
+
+        # убрать код джавы
+        try:
+            details_doc = fromstring(details_html)
+        except XMLSyntaxError:
+            continue
+
+        # выводим название товара на странице
+
+        name_elem = details_doc.cssselect(NAME_ELEM)[0]
+        name_colection = name_elem.text_content()
+
+
+        # выводим описание товара на странице
+        try:
+            description_elem = details_doc.cssselect('#description')[0]
+            description = description_elem.text_content()
+        except:
+            description = "0"
+
+
+        # выводим цену товара на странице
+        try:
+            price_elem = details_doc.cssselect('#cost')[0]
+            price = price_elem.text_content()
+        except:
+            price = "0"
+
+        # выводим описание1 товара на странице
+        try:
+            opisanie_elem = details_doc.cssselect('.card-add-options-category')[0]
+            opisanie = opisanie_elem.text_content()
+        except:
+            opisanie = "0"
+
+
+        #photo_elem = details_doc.cssselect(PHOTO_ELEM)[0]
+        #photo_colection = photo_elem.get('href')
+
+        img_elems = details_doc.cssselect(PHOTO_ELEM)
+        img = [img_elem.get('href') for img_elem in img_elems]
+        #print(img)
+        course['Название товара'] = name_colection
+        course['Описание товара'] = description
+        course['Цена'] = price
+        course['Описание ТАБ1'] = opisanie
+        course['Фото'] = img
+
+        courses.append(course)
+
+    return courses
+
+def export_excel(filename, courses):
+    workbook = xlsxwriter.Workbook(filename)
+    worksheet = workbook.add_worksheet()
+
+    bold = workbook.add_format({'bold': True})
+
+    field_names = ('Ссылка', 'Название товара', 'Описание товара', 'Цена', 'Описание ТАБ1')
+    for i, field in enumerate(field_names):
+        worksheet.write(0, i, field, bold)
+
+        fields = ('url', 'Название товара', 'Описание товара', 'Цена', 'Описание ТАБ1')
+
+    for row, course in enumerate(courses, start=1):
+        for col, field in enumerate(fields):
+            worksheet.write(row, col, course[field])
+        for imgs in course['Фото']:
+            col += 1
+            worksheet.write(row, col, imgs)
+
+    workbook.close()
+
+
+
+def main():
+    courses = parse_courses()
+
+    export_excel('вайлбериз.xlsx', courses)
+
+
+if __name__ == '__main__':
+    main()
+
+
