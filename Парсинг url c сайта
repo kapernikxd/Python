@@ -1,0 +1,43 @@
+#Парсит ссылки до 2ого порядка
+
+import requests
+from bs4 import BeautifulSoup
+from urllib.request import urlopen
+from urllib.parse import urljoin
+from collections import OrderedDict
+import time
+
+
+baseurl = "https://lideruslug.ru"
+url = 'https://lideruslug.ru/uslugi-jelektrika/'
+r = requests.get(url)
+
+soup = BeautifulSoup(r.text, 'lxml')
+
+# Получаем список ссылок с главной страницы
+list_urls = []
+for i in soup.findAll('a'):
+    link = str(i.get('href'))
+    link = urljoin(url, link)
+    urlpages = list_urls.append(link)
+
+
+
+
+print(list_urls)
+
+for list_url in list_urls: #2 ой порядок
+    try:
+        rs = requests.get(list_url)
+        soups = BeautifulSoup(rs.text, 'lxml')
+
+        list_urls_2 = []
+
+        for j in soups.findAll('a'):
+            link_2 = str(j.get('href'))
+            link_2 = urljoin(baseurl, link_2)
+            print(link_2)
+        #print(soups)
+
+    except:
+        print("Пропуск")
